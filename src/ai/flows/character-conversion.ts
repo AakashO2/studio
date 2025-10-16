@@ -29,7 +29,7 @@ export async function characterConversion(input: CharacterConversionInput): Prom
 }
 
 const characterMap = {
-  'A': '/-\',
+  'A': '/-\\',
   'a': '@',
   'B': 'I3',
   'b': '6',
@@ -57,9 +57,46 @@ const characterMap = {
   'o': 'o-',
   'P': '\\o',
   'p': '%',
-  'Q': '0_',n'q': 'o-',
-  'R': '|-\_',
+  'Q': '0_',
+  'q': 'o-',
+  'R': '|-\\_',
   'r': 'i`',
   'S': '5',
   's': '$',
-  'T': '|
+  'T': '|',
+  't': '-/-',
+  'U': '6_9',
+  'u': '_',
+  'V': '\\/',
+  'W': '\\||',
+  'X': '><',
+  'x': '(+)',
+  'Y': '>-',
+  'Z': '"/_',
+  '&': '8',
+  ' ': '_',
+};
+
+const prompt = ai.definePrompt({
+  name: 'characterConversionPrompt',
+  input: {schema: CharacterConversionInputSchema},
+  output: {schema: CharacterConversionOutputSchema},
+  prompt: `You are a password generation assistant. Convert the input string to a secure password using the following character map:
+${JSON.stringify(
+  characterMap
+)} The final converted string should be returned in the 'convertedString' output field.
+
+Input: {{{inputString}}}`,
+});
+
+const characterConversionFlow = ai.defineFlow(
+  {
+    name: 'characterConversionFlow',
+    inputSchema: CharacterConversionInputSchema,
+    outputSchema: CharacterConversionOutputSchema,
+  },
+  async input => {
+    const {output} = await prompt(input);
+    return output!;
+  }
+);
