@@ -116,7 +116,7 @@ export default function Home() {
   };
 
   const handleDeletePassword = async (passwordId: string) => {
-    if (!user) return;
+    if (!user || !firestore) return;
     const passwordDocRef = doc(firestore, 'users', user.uid, 'passwords', passwordId);
     try {
       await deleteDoc(passwordDocRef);
@@ -255,7 +255,7 @@ export default function Home() {
                     </div>
                     <div className='flex items-center'>
                       <Button variant="ghost" size="icon" onClick={() => handleCopyToClipboard(p.encodedPassword, p.id)}>
-                        {copiedId === p.id ? <Check className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-s" />}
+                        {copiedId === p.id ? <Check className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-5" />}
                       </Button>
                       <Button variant="ghost" size="icon" onClick={() => handleDeletePassword(p.id)}>
                         <Trash2 className="h-5 w-5 text-destructive" />
