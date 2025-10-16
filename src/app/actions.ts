@@ -4,7 +4,7 @@ import { getFirestore, doc, getDoc, setDoc, query, collection, where, getDocs } 
 import { getAuth } from 'firebase-admin/auth';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import * as otpauth from 'otpauth';
-import qrcode from 'qrcode';
+import { toDataURL } from 'qrcode';
 
 // Ensure Firebase Admin is initialized
 if (!getApps().length) {
@@ -126,7 +126,7 @@ export async function createOtpUser(email: string): Promise<{ success: boolean; 
       createdAt: new Date().toISOString(),
     });
 
-    const qrCodeDataUrl = await qrcode.toDataURL(uri);
+    const qrCodeDataUrl = await toDataURL(uri);
 
     return { success: true, qrCodeDataUrl, secret: secret.base32 };
 
