@@ -1,0 +1,62 @@
+/**
+ * @file Firebase Security Rules for PasswordForge
+ *
+ * @core_philosophy This ruleset enforces a strict user-ownership model, where each user has complete control over their own data. All data is nested under the /users/{userId} path, ensuring clear ownership.
+ * @data_structure The data is organized hierarchically: /users/{userId} for user profiles and /users/{userId}/passwords/{passwordId} for password entries. This structure ensures clear ownership and efficient data retrieval.
+ * @key_security_decisions
+ *  - User listing is disallowed for privacy.
+ *  - Password entries are only accessible to the owning user.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Enforces access control for user profiles. Only the authenticated user can read and write their own profile.
+     * @path /users/{userId}
+     * @allow (get, update, delete) if request.auth.uid == userId
+     * @allow (create) if request.auth.uid == request.resource.data.id
+     * @deny (get, update, delete) if request.auth.uid != userId
+     * @deny (create) if request.auth.uid != request.resource.data.id
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false; // User listing is not allowed.
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if isOwner(userId) && resource.data.id == request.resource.data.id;
+      allow delete: if isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Enforces access control for password entries. Only the authenticated user who owns the parent user profile can read and write password entries.
+     * @path /users/{userId}/passwords/{passwordId}
+     * @allow (get, list, create, update, delete) if request.auth.uid == userId
+     * @deny (get, list, create, update, delete) if request.auth.uid != userId
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId}/passwords/{passwordId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && resource != null;
+      allow delete: if isOwner(userId) && resource != null;
+    }
+  }
+}

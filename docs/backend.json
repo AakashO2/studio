@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user account within the PasswordForge application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user entity."
+        },
+        "username": {
+          "type": "string",
+          "description": "The user's chosen username for login.",
+          "format": "string"
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address for login and communication.",
+          "format": "email"
+        },
+        "otpSecret": {
+          "type": "string",
+          "description": "Secret key for generating OTPs (One-Time Passwords) for multi-factor authentication."
+        },
+        "isOtpEnabled": {
+          "type": "boolean",
+          "description": "Indicates whether OTP-based authentication is enabled for this user."
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email"
+      ]
+    },
+    "PasswordEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PasswordEntry",
+      "type": "object",
+      "description": "Represents a stored password entry for a specific user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the password entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns this password entry. (Relationship: User 1:N PasswordEntry)"
+        },
+        "websiteName": {
+          "type": "string",
+          "description": "The name of the website or service the password is for."
+        },
+        "encodedPassword": {
+          "type": "string",
+          "description": "The encoded password generated for this website"
+        },
+        "lastModified": {
+          "type": "string",
+          "description": "Timestamp of when the password entry was last modified.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "websiteName",
+        "encodedPassword"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user account information. Includes fields for username, email, OTP secret, and OTP enabled status. This path provides implicit ownership for the user based on their unique ID.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, corresponding to their Firebase Auth UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/passwords/{passwordId}",
+        "definition": {
+          "entityName": "PasswordEntry",
+          "schema": {
+            "$ref": "#/backend/entities/PasswordEntry"
+          },
+          "description": "Stores password entries associated with a specific user. This subcollection ensures that each password entry is directly linked to its owner, simplifying security rules and queries.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user who owns the password entry."
+            },
+            {
+              "name": "passwordId",
+              "description": "The unique identifier for the password entry."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure secure and efficient data management for the PasswordForge application, focusing on user authentication and password entry storage. The design prioritizes Authorization Independence and segregation of concerns for enhanced security and debuggability.\n\nUsers are stored in a top-level `/users/{userId}` collection. This adheres to the principle of \"Path-Based Ownership,\" granting the user full control over their own data. Crucially, `PasswordEntry` documents are stored as a subcollection of `/users/{userId}/passwords/{passwordId}`. This approach provides inherent ownership via the path and, more importantly, allows for easy querying of passwords associated with a specific user. This structure avoids any reliance on `get()` calls in security rules, making operations atomic and improving security.\n\n**Authorization Independence:** The structure achieves authorization independence by leveraging path-based ownership. Security rules can directly enforce that only the user identified by `{userId}` can access documents under `/users/{userId}`.\n\n**QAPs Support:**\n\n*   **List Operation Security:** Segregation of user data into individual user documents and password entries into user-owned subcollections ensures secure list operations. A user can only list password entries within their own `/users/{userId}/passwords` collection, preventing unauthorized access.\n\n**OTP Storage:** The OTP secret and enabled status are stored directly within the user document (`/users/{userId}`), allowing for simple security rules based on `request.auth.uid`."
+  }
+}
