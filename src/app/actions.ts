@@ -1,6 +1,6 @@
 'use server';
 
-import { getFirestore, doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase-admin/firestore';
+import * as firestoreAdmin from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import * as otpauth from 'otpauth';
@@ -13,7 +13,7 @@ if (!getApps().length) {
   });
 }
 
-const firestore = getFirestore();
+const firestore = firestoreAdmin.getFirestore();
 const adminAuth = getAuth();
 
 const characterMap: { [key: string]: string } = {
@@ -91,9 +91,9 @@ export async function createOtpUser(email: string): Promise<{ success: boolean; 
     const lowercasedEmail = email.toLowerCase();
     
     // Check if user already exists in Firestore
-    const usersRef = collection(firestore, 'users');
-    const q = query(usersRef, where('email', '==', lowercasedEmail));
-    const querySnapshot = await getDocs(q);
+    const usersRef = firestore.collection('users');
+    const q = usersRef.where('email', '==', lowercasedEmail);
+    const querySnapshot = await q.get();
 
     if (!querySnapshot.empty) {
         return { success: false, error: 'User with this email already exists.' };
@@ -117,8 +117,8 @@ export async function createOtpUser(email: string): Promise<{ success: boolean; 
     const userRecord = await adminAuth.createUser({ email: lowercasedEmail, emailVerified: true });
 
     // Store user info and OTP secret in Firestore
-    const userDocRef = doc(firestore, 'users', userRecord.uid);
-    await setDoc(userDocRef, {
+    const userDocRef = firestore.doc(`users/${userRecord.uid}`);
+    await userDocRef.set({
       uid: userRecord.uid,
       email: lowercasedEmail,
       otpSecret: secret.base32,
@@ -141,9 +141,9 @@ export async function loginWithOtp(email: string, otp: string): Promise<{ succes
         const lowercasedEmail = email.toLowerCase();
         
         // Find user by email in Firestore
-        const usersRef = collection(firestore, 'users');
-        const q = query(usersRef, where('email', '==', lowercasedEmail));
-        const querySnapshot = await getDocs(q);
+        const usersRef = firestore.collection('users');
+        const q = usersRef.where('email', '==', lowercasedEmail);
+        const querySnapshot = await q.get();
 
         if (querySnapshot.empty) {
             return { success: false, error: 'Invalid login details.' };
