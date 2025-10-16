@@ -157,17 +157,7 @@ export default function Home() {
     }
   };
 
-  const [isAppLoading, setIsAppLoading] = useState(true);
-  useEffect(() => {
-    // isUserLoading tells us if the user state has been determined
-    // Once it's false, we know if we have a user or not.
-    if (!isUserLoading) {
-      setIsAppLoading(false);
-    }
-  }, [isUserLoading]);
-
-
-  if (isAppLoading) {
+  if (isUserLoading) {
      return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8 md:p-12 lg:p-24">
         <Loader className="animate-spin" />

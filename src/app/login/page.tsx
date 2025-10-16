@@ -13,82 +13,35 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Loader } from 'lucide-react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import * as otpauth from 'otpauth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const auth = useAuth();
-  const firestore = useFirestore();
   const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-        const lowercasedEmail = email.toLowerCase();
-        
-        // 1. Find user by email in Firestore
-        const usersRef = collection(firestore, 'users');
-        const q = query(usersRef, where('email', '==', lowercasedEmail));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-            throw new Error('Invalid login details. User not found.');
-        }
-
-        const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data();
-        
-        if (!userData.isOtpEnabled || !userData.otpSecret) {
-            throw new Error('OTP is not enabled for this account.');
-        }
-        
-        // 2. Validate the OTP
-        const secret = otpauth.Secret.fromBase32(userData.otpSecret);
-        const totp = new otpauth.TOTP({
-            issuer: 'PasswordForge',
-            label: lowercasedEmail,
-            algorithm: 'SHA1',
-            digits: 6,
-            period: 30,
-            secret: secret,
-        });
-
-        const delta = totp.validate({ token: otp, window: 1 });
-        
-        if (delta === null) {
-            throw new Error('Invalid OTP code.');
-        }
-
-        // 3. Sign in the user with their email and the temporary password stored in Firestore
-        if (!userData.tempPassword) {
-          throw new Error("Cannot log in. Account setup is incomplete.");
-        }
-
-        await signInWithEmailAndPassword(auth, lowercasedEmail, userData.tempPassword);
-        
-        toast({
-          title: 'Login Successful',
-          description: "Welcome back!",
-        });
-        
-        router.push('/');
-
-
+      await signInWithEmailAndPassword(auth, email, password);
+      toast({
+        title: 'Login Successful',
+        description: 'Welcome back!',
+      });
+      router.push('/');
     } catch (error: any) {
       console.error('Login error:', error);
       toast({
         variant: 'destructive',
         title: 'Login Failed',
-        description: error.message || 'Invalid login details.',
+        description: error.message || 'Invalid email or password.',
       });
     } finally {
       setIsLoading(false);
@@ -101,7 +54,7 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
-            Enter your email and the code from your authenticator app.
+            Enter your email below to login to your account.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -118,17 +71,13 @@ export default function LoginPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="otp">One-Time Code</Label>              
-              <Input 
-                id="otp" 
-                type="text" 
-                required 
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                placeholder="123456"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="\\d{6}"
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
