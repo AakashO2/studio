@@ -114,7 +114,7 @@ export default function Home() {
   };
 
   const handleSavePassword = async () => {
-    if (!generatedPassword || !userPasswordsCollection) return;
+    if (!generatedPassword || !userPasswordsCollection || !name) return;
     const newPassword = { websiteName: name, encodedPassword: generatedPassword, lastModified: serverTimestamp() };
     addDocumentNonBlocking(userPasswordsCollection, newPassword);
     toast({
