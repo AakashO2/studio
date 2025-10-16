@@ -1,23 +1,16 @@
-/**
- * @file Firebase Security Rules for PasswordForge
- *
- * @core_philosophy This ruleset enforces a strict user-ownership model, where each user has complete control over their own data. All data is nested under the /users/{userId} path, ensuring clear ownership.
- * @data_structure The data is organized hierarchically: /users/{userId} for user profiles and /users/{userId}/passwords/{passwordId} for password entries. This structure ensures clear ownership and efficient data retrieval.
- * @key_security_decisions
- *  - User listing is disallowed for privacy.
- *  - Password entries are only accessible to the owning user.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces access control for user profiles. Only the authenticated user can read and write their own profile.
+     * @description Controls access to user documents.
      * @path /users/{userId}
-     * @allow (get, update, delete) if request.auth.uid == userId
-     * @allow (create) if request.auth.uid == request.resource.data.id
-     * @deny (get, update, delete) if request.auth.uid != userId
-     * @deny (create) if request.auth.uid != request.resource.data.id
+     * @allow (create) User with UID 'user123' can create their own document.
+     * @allow (get) User with UID 'user123' can read their own document.
+     * @allow (update) User with UID 'user123' can update their own document.
+     * @allow (delete) User with UID 'user123' can delete their own document.
+     * @deny (create) User with UID 'user456' cannot create a document for user 'user123'.
+     * @deny (get) User with UID 'user456' cannot read the document of user 'user123'.
      * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
@@ -29,19 +22,23 @@ service cloud.firestore {
         return request.auth.uid == userId;
       }
 
-      allow get: if isOwner(userId);
-      allow list: if false; // User listing is not allowed.
-      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
-      allow update: if isOwner(userId) && resource.data.id == request.resource.data.id;
-      allow delete: if isOwner(userId) && resource != null;
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false; // Listing users is not permitted.
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Enforces access control for password entries. Only the authenticated user who owns the parent user profile can read and write password entries.
+     * @description Controls access to password entries for a specific user.
      * @path /users/{userId}/passwords/{passwordId}
-     * @allow (get, list, create, update, delete) if request.auth.uid == userId
-     * @deny (get, list, create, update, delete) if request.auth.uid != userId
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) User with UID 'user123' can create a password entry in their own subcollection.
+     * @allow (get) User with UID 'user123' can read a password entry in their own subcollection.
+     * @allow (update) User with UID 'user123' can update a password entry in their own subcollection.
+     * @allow (delete) User with UID 'user123' can delete a password entry in their own subcollection.
+     * @deny (create) User with UID 'user456' cannot create a password entry in user 'user123's subcollection.
+     * @deny (get) User with UID 'user456' cannot read password entries in user 'user123's subcollection.
+     * @principle Restricts password entries to the owning user.
      */
     match /users/{userId}/passwords/{passwordId} {
       function isSignedIn() {
@@ -52,11 +49,15 @@ service cloud.firestore {
         return request.auth.uid == userId;
       }
 
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) && resource != null;
-      allow delete: if isOwner(userId) && resource != null;
+      function isExistingOwner(userId) {
+        return isOwner(userId) && exists(resource);
+      }
+
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
   }
 }
