@@ -21,7 +21,7 @@ import { QrCode, Mail } from 'lucide-react';
 import * as otpauth from 'otpauth';
 import { toDataURL } from 'qrcode';
 import { useFirestore, useAuth } from '@/firebase';
-import { doc, setDoc, getDocs, collection, query, where } from 'firebase/firestore';
+import { doc, setDoc, getDocs, collection, query, where, serverTimestamp } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 
@@ -86,7 +86,7 @@ export default function SignupPage() {
         email: lowercasedEmail,
         otpSecret: secret.base32,
         isOtpEnabled: true,
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
         tempPassword: tempPassword, // Store temp password to allow first login
       });
       

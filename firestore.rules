@@ -1,85 +1,80 @@
 /**
  * @fileoverview Firestore Security Rules for PasswordForge.
  *
- * Core Philosophy:
- * This ruleset enforces a strict user-ownership model. Each user has exclusive access
- * to their own data, and no cross-user access is permitted.
+ * Core Philosophy: This ruleset enforces a strict user-ownership model. Each user
+ * has complete control over their data stored under their specific user ID.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile information.
- * - /users/{userId}/passwords/{passwordId}: Stores password entries for each user.
+ * - /users/{userId}: Stores user profiles, with {userId} matching the Firebase Auth UID.
+ * - /users/{userId}/passwords/{passwordId}: Stores password entries, nested under each user.
  *
  * Key Security Decisions:
- * - Users can only read and write their own profile data.
- * - Users can only read and write their own password entries.
- * - Listing of all users is disallowed.
- * - No administrative roles or elevated privileges are defined.
+ * - Users can only create, read, update, and delete their own user documents.
+ * - Users can only create, read, update, and delete password entries associated with their user ID.
+ * - Listing all users is disallowed.
  *
  * Denormalization for Authorization:
- * - Password entries are stored as subcollections of user documents (/users/{userId}/passwords/{passwordId}) to enforce
- *   ownership and avoid costly `get()` calls.  The userId is present in both the path and the document.  The rules
- *   enforce consistency between the two.
+ * - The `userId` is present in both the user document path and the `PasswordEntry` document. This allows
+ *   for efficient authorization checks without additional reads.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces access control for user profiles. Only the authenticated user can read or modify their own profile.
+     * @description Controls access to user profiles.
      * @path /users/{userId}
-     * @allow (create) - User with UID 'user_abc' can create their profile at /users/user_abc if the document's id field also contains 'user_abc'.
-     * @allow (get, update, delete) - User with UID 'user_abc' can get, update, and delete their profile at /users/user_abc.
+     * @allow (create) - User with UID 'user_abc' can create their profile at /users/user_abc if the document id matches their uid.
+     * @allow (get) - User with UID 'user_abc' can read their profile at /users/user_abc.
+     * @allow (update) - User with UID 'user_abc' can update their profile at /users/user_abc.
+     * @allow (delete) - User with UID 'user_abc' can delete their profile at /users/user_abc.
      * @deny (create) - User with UID 'user_xyz' cannot create a profile at /users/user_abc.
-     * @deny (get, update, delete) - User with UID 'user_xyz' cannot get, update, or delete the profile at /users/user_abc.
      * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
-      //  || request.auth.token.email == 'test@example.com'  can be used for role based authentication
+      //Function to check if the user is signed in
+      function isSignedIn() {
+        return request.auth != null;
+      }
 
+      //Function to check if the requesting user id and the resource user id are the same
       function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
+        return request.auth.uid == userId;
       }
 
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if false; // Listing users is not permitted
-
-      // Self-creation:  A user can create their own document
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-
-      // Existing user can update and delete their own document
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id; //Enforce immutability of userId
-      allow delete: if isExistingOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false; // Listing all users is not permitted.
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Enforces access control for password entries. Only the owner of the password entry can read, create, update, or delete it.
+     * @description Controls access to password entries for a specific user.
      * @path /users/{userId}/passwords/{passwordId}
-     * @allow (create) - User with UID 'user_abc' can create a password entry under /users/user_abc/passwords/password_123.
-     * @allow (get, update, delete) - User with UID 'user_abc' can get, update, and delete the password entry /users/user_abc/passwords/password_123.
-     * @allow (list) - User with UID 'user_abc' can list password entries under /users/user_abc/passwords.
-     * @deny (create) - User with UID 'user_xyz' cannot create a password entry under /users/user_abc/passwords/password_123.
-     * @deny (get, update, delete) - User with UID 'user_xyz' cannot get, update, or delete the password entry /users/user_abc/passwords/password_123.
-     * @principle Enforces document ownership and data consistency for all operations.
+     * @allow (create) - User with UID 'user_abc' can create a password entry under /users/user_abc/passwords/password_1.
+     * @allow (get) - User with UID 'user_abc' can read their password entry at /users/user_abc/passwords/password_1.
+     * @allow (update) - User with UID 'user_abc' can update their password entry at /users/user_abc/passwords/password_1.
+     * @allow (delete) - User with UID 'user_abc' can delete their password entry at /users/user_abc/passwords/password_1.
+     * @deny (create) - User with UID 'user_xyz' cannot create a password entry under /users/user_abc/passwords/password_1.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/passwords/{passwordId} {
+       //Function to check if the user is signed in
+      function isSignedIn() {
+        return request.auth != null;
+      }
 
+      //Function to check if the requesting user id and the resource user id are the same
       function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
+        return request.auth.uid == userId;
       }
 
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId; // Enforce immutability of userId
-      allow delete: if isExistingOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
   }
 }
