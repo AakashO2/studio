@@ -4,7 +4,7 @@ import { getFirestore, doc, getDoc, setDoc, query, collection, where, getDocs } 
 import { getAuth } from 'firebase-admin/auth';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import * as otpauth from 'otpauth';
-import * as qrcode from 'qrcode';
+import qrcode from 'qrcode';
 
 // Ensure Firebase Admin is initialized
 if (!getApps().length) {
