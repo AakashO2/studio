@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,10 +27,15 @@ import {
   Trash2,
   Lock,
   Check,
+  Loader,
 } from "lucide-react";
 import { generatePasswordAction } from "./actions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { collection, doc } from "firebase/firestore";
+import Link from "next/link";
 
 type StoredPassword = {
   id: string;
@@ -42,21 +47,19 @@ export default function Home() {
   const [name, setName] = useState("");
   const [generatedPassword, setGeneratedPassword] = useState("");
   const [isPending, startTransition] = useTransition();
-  const [passwords, setPasswords] = useState<StoredPassword[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
 
   const { toast } = useToast();
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
 
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("passwords");
-      if (stored) {
-        setPasswords(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.error("Failed to parse passwords from localStorage", error);
-    }
-  }, []);
+  const userPasswordsCollection = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, `users/${user.uid}/passwords`);
+  }, [firestore, user]);
+
+  const { data: passwords, isLoading: passwordsLoading } = useCollection<Omit<StoredPassword, 'id'>>(userPasswordsCollection);
+
 
   const handleGeneratePassword = () => {
     if (!name) {
@@ -84,11 +87,9 @@ export default function Home() {
   };
 
   const handleSavePassword = () => {
-    if (!generatedPassword) return;
-    const newPassword = { id: crypto.randomUUID(), name, value: generatedPassword };
-    const updatedPasswords = [...passwords, newPassword];
-    setPasswords(updatedPasswords);
-    window.localStorage.setItem("passwords", JSON.stringify(updatedPasswords));
+    if (!generatedPassword || !userPasswordsCollection) return;
+    const newPassword = { name, value: generatedPassword, lastModified: new Date().toISOString() };
+    addDocumentNonBlocking(userPasswordsCollection, newPassword);
     toast({
       title: "Password Saved",
       description: `Password for "${name}" has been saved to your vault.`,
@@ -98,17 +99,54 @@ export default function Home() {
   };
 
   const handleDeletePassword = (id: string) => {
-    const updatedPasswords = passwords.filter((p) => p.id !== id);
-    setPasswords(updatedPasswords);
-    window.localStorage.setItem("passwords", JSON.stringify(updatedPasswords));
+    if (!firestore || !user) return;
+    const docRef = doc(firestore, `users/${user.uid}/passwords`, id);
+    deleteDocumentNonBlocking(docRef);
     toast({
       title: "Password Deleted",
       description: "The password has been removed from your vault.",
     });
   };
 
+  if (isUserLoading) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8 md:p-12 lg:p-24">
+        <Loader className="animate-spin" />
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+       <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center p-4 sm:p-8 md:p-12 lg:p-24">
+        <div className="w-full max-w-md text-center">
+           <Card className="shadow-lg">
+             <CardHeader>
+               <CardTitle className="flex items-center justify-center gap-2">
+                 <Lock className="text-primary" />
+                 Welcome to PasswordForge
+               </CardTitle>
+               <CardDescription>
+                 Please log in or sign up to use the password vault.
+               </CardDescription>
+             </CardHeader>
+             <CardContent className="flex justify-center gap-4">
+               <Button asChild>
+                 <Link href="/login">Log In</Link>
+               </Button>
+               <Button variant="outline" asChild>
+                 <Link href="/signup">Sign Up</Link>
+               </Button>
+             </CardContent>
+           </Card>
+         </div>
+       </main>
+    )
+  }
+
+
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 sm:p-8 md:p-12 lg:p-24">
+    <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center p-4 sm:p-8 md:p-12 lg:p-24">
       <div className="w-full max-w-4xl space-y-8">
         <div className="text-center">
           <h1 className="font-headline text-4xl sm:text-5xl font-bold tracking-tight text-primary flex items-center justify-center gap-3">
@@ -188,65 +226,73 @@ export default function Home() {
             </CardFooter>
           )}
         </Card>
-
-        {passwords.length > 0 && (
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Lock className="text-primary" />
-                Password Vault
-              </CardTitle>
-              <CardDescription>
-                Your saved passwords. Stored securely in your browser.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Password</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {passwords.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="font-mono">{p.value}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleCopyToClipboard(p.value, p.id)}
-                            >
-                               {copied === p.id ? (
-                                <Check className="h-4 w-4 text-green-500" />
-                              ) : (
-                                <Copy className="h-4 w-4" />
-                              )}
-                              <span className="sr-only">Copy</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeletePassword(p.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive/80" />
-                              <span className="sr-only">Delete</span>
-                            </Button>
-                          </div>
-                        </TableCell>
+        
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="text-primary" />
+              Password Vault
+            </CardTitle>
+            <CardDescription>
+              Your saved passwords. Stored securely in the cloud.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+             {passwordsLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : passwords && passwords.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Password</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                    </TableHeader>
+                    <TableBody>
+                      {passwords.map((p) => (
+                        <TableRow key={p.id}>
+                          <TableCell className="font-medium">{p.name}</TableCell>
+                          <TableCell className="font-mono">{p.value}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleCopyToClipboard(p.value, p.id)}
+                              >
+                                 {copied === p.id ? (
+                                  <Check className="h-4 w-4 text-green-500" />
+                                ) : (
+                                  <Copy className="h-4 w-4" />
+                                )}
+                                <span className="sr-only">Copy</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeletePassword(p.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive/80" />
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+               ) : (
+                <p className="text-muted-foreground text-center">Your vault is empty. Save a password to see it here.</p>
+              )}
+          </CardContent>
+        </Card>
       </div>
     </main>
   );
