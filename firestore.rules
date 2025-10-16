@@ -1,17 +1,33 @@
+/**
+ * @fileoverview Firestore Security Rules for PasswordForge.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model. Each user has complete control over their own data.
+ *
+ * Data Structure:
+ * - Users are stored in `/users/{userId}`.
+ * - Password entries are stored in `/users/{userId}/passwords/{passwordId}`.
+ *
+ * Key Security Decisions:
+ * - Users can only access their own user document and password entries.
+ * - Listing all users is disallowed.
+ *
+ * Denormalization for Authorization:
+ * The `PasswordEntry` documents are stored as subcollections of the user documents.
+ * This approach provides inherent ownership via the path and, more importantly, allows for easy querying of passwords associated with a specific user.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user documents.
-     * @path /users/{userId}
-     * @allow (create) User with UID 'user123' can create their own document.
-     * @allow (get) User with UID 'user123' can read their own document.
-     * @allow (update) User with UID 'user123' can update their own document.
-     * @allow (delete) User with UID 'user123' can delete their own document.
-     * @deny (create) User with UID 'user456' cannot create a document for user 'user123'.
-     * @deny (get) User with UID 'user456' cannot read the document of user 'user123'.
-     * @principle Enforces document ownership for all operations.
+     * @description Protects the /users/{userId} collection.  Allows a user to read and write their own user document.
+     * @path /databases/{database}/documents/users/{userId}
+     * @allow (create) - Authenticated user with matching UID can create their own document.
+     * @allow (get, list, update, delete) - Authenticated user with matching UID can access their own document.
+     * @deny (create) - Authenticated user cannot create a document with a different UID.
+     * @deny (get, list, update, delete) - Authenticated user cannot access another user's document.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
       function isSignedIn() {
@@ -22,23 +38,23 @@ service cloud.firestore {
         return request.auth.uid == userId;
       }
 
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false; // Listing users is not permitted.
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId);
-      allow delete: if isSignedIn() && isOwner(userId);
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to password entries for a specific user.
-     * @path /users/{userId}/passwords/{passwordId}
-     * @allow (create) User with UID 'user123' can create a password entry in their own subcollection.
-     * @allow (get) User with UID 'user123' can read a password entry in their own subcollection.
-     * @allow (update) User with UID 'user123' can update a password entry in their own subcollection.
-     * @allow (delete) User with UID 'user123' can delete a password entry in their own subcollection.
-     * @deny (create) User with UID 'user456' cannot create a password entry in user 'user123's subcollection.
-     * @deny (get) User with UID 'user456' cannot read password entries in user 'user123's subcollection.
-     * @principle Restricts password entries to the owning user.
+     * @description Protects the /users/{userId}/passwords/{passwordId} collection. Allows a user to manage their own passwords.
+     * @path /databases/{database}/documents/users/{userId}/passwords/{passwordId}
+     * @allow (create, get, list, update, delete) - Authenticated user with matching UID can access their own password entries.
+     * @deny (create, get, list, update, delete) - Authenticated user cannot access another user's password entries.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/passwords/{passwordId} {
       function isSignedIn() {
@@ -49,14 +65,14 @@ service cloud.firestore {
         return request.auth.uid == userId;
       }
 
-      function isExistingOwner(userId) {
-        return isSignedIn() && isOwner(userId) && exists(resource);
+       function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
       }
 
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if isSignedIn() && isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId);// && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId);// && request.resource.data.userId == resource.data.userId;
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
       allow delete: if isExistingOwner(userId);
     }
   }
