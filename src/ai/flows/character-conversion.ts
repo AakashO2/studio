@@ -29,17 +29,13 @@ export async function characterConversion(input: CharacterConversionInput): Prom
 }
 
 const characterMap = {
-    'g': '(_;',
-    'i': '][',
-    't': '-/-',
-    'h': '#',
-    'u': '_',
-    'b': '`+',
-    'a': '@',
-    's': '$',
-    'n': '9',
-    'r': 'i`',
-    'm': '1+6+5'
+    'A': '/-|', 'a': '@', 'B': 'I3', 'b': '`+', 'C': '(', 'c': '^', 'D': '|)', 'd': '-:-',
+    'E': '8', 'e': '=', 'F': '1=', 'f': '4', 'G': '(_;', 'g': ' ', 'H': 'i-!', 'h': '#',
+    'I': '][', 'i': '][', 'J': '_7', 'K': '/<', 'k': 'k', 'L': 'I_', 'l': '1', 'M': '[|/]',
+    'm': '1+6+5', 'N': '!/i', 'n': '9', 'O': '{}', 'o': '5', 'P': 'o/', 'p': '%',
+    'Q': '0_', 'q': 'o-', 'R': '_/-|', 'r': 'i`', 'S': '/', 's': '$', 'T': '"|"',
+    't': '-/-', 'U': '|_/', 'u': '_', 'V': '|/', 'v': ';/', 'W': '|||', 'w': '8',
+    'X': '><', 'x': '(+)', 'Y': '>-', 'y': '7', 'Z': '"/_', 'z': '-|.'
 };
 
 const characterConversionFlow = ai.defineFlow(
@@ -50,7 +46,7 @@ const characterConversionFlow = ai.defineFlow(
   },
   async input => {
     let converted = '';
-    for (const char of input.inputString.toLowerCase()) {
+    for (const char of input.inputString) {
       if (char in characterMap) {
         converted += characterMap[char as keyof typeof characterMap];
       } else {
