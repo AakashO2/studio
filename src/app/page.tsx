@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
@@ -83,15 +84,8 @@ export default function Home() {
       additionalChars += char;
     }
     
-    const combinedChars = (convertedString + additionalChars).split('');
-    
-    // Fisher-Yates shuffle
-    for (let i = combinedChars.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [combinedChars[i], combinedChars[j]] = [combinedChars[j], combinedChars[i]];
-    }
-  
-    return combinedChars.join('');
+    // Append random characters to the end, without shuffling the base converted string.
+    return convertedString + additionalChars;
   }
 
   const handleGeneratePassword = () => {
