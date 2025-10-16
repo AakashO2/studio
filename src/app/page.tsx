@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -14,7 +14,7 @@ import { Lock, KeyRound, Sparkles, Copy, Check, Trash2, PlusCircle, Vault } from
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { characterConversion } from '@/ai/flows/character-conversion';
-import { useUser, useFirestore, useCollection } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import {
   collection,
   doc,
@@ -41,9 +41,10 @@ export default function Home() {
 
   const { toast } = useToast();
   
-  const passwordsCollection = user
-    ? collection(firestore, 'users', user.uid, 'passwords')
-    : null;
+  const passwordsCollection = useMemoFirebase(() => 
+    user ? collection(firestore, 'users', user.uid, 'passwords') : null,
+    [firestore, user]
+  );
 
   const { data: passwords, isLoading: isLoadingPasswords } = useCollection<PasswordEntry>(passwordsCollection);
 

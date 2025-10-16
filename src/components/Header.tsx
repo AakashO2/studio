@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Lock, LogOut } from 'lucide-react';
 import { useUser } from '@/firebase/provider';
 import { getAuth, signOut } from 'firebase/auth';
@@ -9,9 +10,11 @@ import { Button } from './ui/button';
 export default function Header() {
   const { user, isUserLoading } = useUser();
   const auth = getAuth();
+  const router = useRouter();
 
-  const handleLogout = () => {
-    signOut(auth);
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push('/');
   };
 
   return (
