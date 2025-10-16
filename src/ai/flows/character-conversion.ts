@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Converts characters in an input string to special characters based on a predefined mapping.
@@ -30,70 +29,18 @@ export async function characterConversion(input: CharacterConversionInput): Prom
 }
 
 const characterMap = {
-  'A': '/-|',
-  'a': '@',
-  'B': 'I3',
-  'b': '`',
-  'C': '(',
-  'c': '^',
-  'D': '|)',
-  'd': '-:-',
-  'E': '8',
-  'e': '=',
-  'F': '1=',
-  'f': '4',
-  'G': '(_;',
-  'g': ' ',
-  'H': 'i-!',
-  'h': '#',
-  'I': '][',
-  'i': '][',
-  'J': '_7',
-  'K': '/<',
-  'L': 'I_',
-  'l': '1',
-  'M': '[|/]',
-  'm': '1+6+5',
-  'N': '!/i',
-  'n': '9',
-  'O': '{}',
-  'o': '5',
-  'P': 'o/',
-  'p': '%',
-  'Q': '0_',
-  'q': 'o-',
-  'R': '_/-|',
-  'r': 'i`',
-  'S': '/',
-  's': '$',
-  'T': '"|"',
-  't': '-/-',
-  'U': '|_/',
-  'u': '_',
-  'V': '|/',
-  'v': ';/',
-  'W': '|||',
-  'w': '8',
-  'X': '><',
-  'x': '(+)',
-  'Y': '>-',
-  'y': '7',
-  'Z': '"/_',
-  'z': '-|.'
+    'g': '(_;',
+    'i': '][',
+    't': '-/-',
+    'h': '#',
+    'u': '_',
+    'b': '+',
+    'a': '@',
+    's': '$',
+    'n': '9',
+    'r': 'i`',
+    'm': '1+6+5'
 };
-
-const prompt = ai.definePrompt({
-  name: 'characterConversionPrompt',
-  input: {schema: CharacterConversionInputSchema},
-  output: {schema: CharacterConversionOutputSchema},
-  prompt: `You are a text conversion assistant. Convert the input string to a confidential format using the following character map:
-${JSON.stringify(
-  characterMap
-)} 
-If a character from the input string is not in the map, keep the original character. The final converted string should be returned in the 'convertedString' output field.
-
-Input: {{{inputString}}}`,
-});
 
 const characterConversionFlow = ai.defineFlow(
   {
@@ -102,14 +49,11 @@ const characterConversionFlow = ai.defineFlow(
     outputSchema: CharacterConversionOutputSchema,
   },
   async input => {
-    // Manually convert the string to handle characters not in the map
     let converted = '';
-    for (const char of input.inputString) {
-      // Check if the character exists in the map (case-sensitive)
+    for (const char of input.inputString.toLowerCase()) {
       if (char in characterMap) {
         converted += characterMap[char as keyof typeof characterMap];
       } else {
-        // If not in the map, keep the original character
         converted += char;
       }
     }

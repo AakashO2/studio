@@ -1,12 +1,15 @@
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import { Toaster } from '@/components/ui/toaster';
+import { FirebaseClientProvider } from '@/firebase';
+import Header from '@/components/Header';
+import './globals.css';
 
-import type { Metadata } from "next";
-import { Toaster } from "@/components/ui/toaster";
-import "./globals.css";
-import Header from "@/components/Header";
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "Confidential Text Converter",
-  description: "Convert text into a confidential format.",
+  title: 'PasswordForge',
+  description: 'Generate and store strong passwords.',
 };
 
 export default function RootLayout({
@@ -16,18 +19,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="true" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="font-body antialiased">
-        <Header />
-        {children}
-        <Toaster />
+      <body className={inter.className}>
+        <FirebaseClientProvider>
+          <Header />
+          <main>{children}</main>
+          <Toaster />
+        </FirebaseClientProvider>
       </body>
     </html>
   );
