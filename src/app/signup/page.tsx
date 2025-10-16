@@ -56,9 +56,9 @@ export default function SignupPage() {
 
       toast({
         title: 'Signup Successful',
-        description: 'You can now log in.',
+        description: 'Welcome to PasswordForge!',
       });
-      router.push('/login');
+      router.push('/');
     } catch (error: any) {
       console.error('Signup error:', error);
       toast({
