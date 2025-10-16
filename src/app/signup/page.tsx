@@ -18,7 +18,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { QrCode, Mail } from 'lucide-react';
-import { createOtpUser } from '../actions';
+import * as otpauth from 'otpauth';
+import { toDataURL } from 'qrcode';
+import { useFirestore, useAuth } from '@/firebase';
+import { doc, setDoc, getDocs, collection, query, where } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+
 
 type QrCodeInfo = {
   qrCodeDataUrl: string;
@@ -31,6 +36,8 @@ export default function SignupPage() {
   const [qrCodeInfo, setQrCodeInfo] = useState<QrCodeInfo | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const firestore = useFirestore();
+  const auth = useAuth();
 
   const handleGenerateQrCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,16 +51,53 @@ export default function SignupPage() {
     }
     setIsLoading(true);
     try {
-      const result = await createOtpUser(email);
-      if (result.success && result.qrCodeDataUrl && result.secret) {
-        setQrCodeInfo({ qrCodeDataUrl: result.qrCodeDataUrl, secret: result.secret });
-        toast({
-          title: 'QR Code Generated',
-          description: 'Scan the code with your authenticator app.',
-        });
-      } else {
-        throw new Error(result.error || 'Could not generate QR code.');
+      const lowercasedEmail = email.toLowerCase();
+      
+      // 1. Check if user already exists in Firestore
+      const usersRef = collection(firestore, 'users');
+      const q = query(usersRef, where('email', '==', lowercasedEmail));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        throw new Error('User with this email already exists.');
       }
+
+      // 2. Generate OTP secret and URI
+      const secret = new otpauth.Secret({ size: 20 });
+      const totp = new otpauth.TOTP({
+        issuer: 'PasswordForge',
+        label: lowercasedEmail,
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: secret,
+      });
+      const uri = totp.toString();
+
+      // 3. Create a temporary user with a random password in Firebase Auth.
+      // This user will be used to get a UID, but login will be forced via OTP.
+      const tempPassword = Math.random().toString(36).slice(-8);
+      const userCredential = await createUserWithEmailAndPassword(auth, lowercasedEmail, tempPassword);
+      const user = userCredential.user;
+
+      // 4. Store user info and OTP secret in Firestore
+      await setDoc(doc(firestore, 'users', user.uid), {
+        uid: user.uid,
+        email: lowercasedEmail,
+        otpSecret: secret.base32,
+        isOtpEnabled: true,
+        createdAt: new Date().toISOString(),
+      });
+      
+      // 5. Generate QR Code and update state
+      const qrCodeDataUrl = await toDataURL(uri);
+
+      setQrCodeInfo({ qrCodeDataUrl, secret: secret.base32 });
+      toast({
+        title: 'QR Code Generated',
+        description: 'Scan the code with your authenticator app.',
+      });
+
     } catch (error: any) {
       toast({
         variant: 'destructive',

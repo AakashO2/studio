@@ -29,14 +29,81 @@ import {
   Check,
   Loader,
 } from "lucide-react";
-import { generatePasswordAction } from "./actions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUser, useFirestore, useCollection } from "@/firebase";
-import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { collection, doc } from "firebase/firestore";
+import { addDoc, deleteDoc, collection, doc } from "firebase/firestore";
 import Link from "next/link";
 import { useMemo } from "react";
+
+const characterMap: { [key: string]: string } = {
+  'A': '/-\\', 'a': '@',
+  'B': 'I3', 'b': '6',
+  'C': '(', 'c': '^',
+  'D': '|)', 'd': '-:-',
+  'E': '8', 'e': '8',
+  'F': '1=', 'f': '4',
+  'G': '(_;',
+  'H': 'i-!', 'h': '#',
+  'I': '][',
+  'J': '_7',
+  'K': '/<',
+  'L': 'I_', 'l': '1',
+  'M': '[\\/]', 'm': '7+5',
+  'N': '!\\i', 'n': '9',
+  'O': '{}', 'o': 'o-',
+  'P': '\\o', 'p': '%',
+  'Q': '0_', 'q': 'o-',
+  'R': '|-\\_', 'r': "i`",
+  'S': '5', 's': '$',
+  'T': '|', 't': '-/-',
+  'U': '6_9', 'u': '_',
+  'V': '\\/',
+  'W': '\\||',
+  'X': '><', 'x': '(+)',
+  'Y': '>-',
+  'Z': '"/_',
+  '&': '8',
+  ' ': '_',
+};
+
+function convertString(input: string): string {
+  return input.split('').map(char => characterMap[char] || char).join('');
+}
+
+const allSpecialChars = "!@#$%^&*()_+-=[]{}|;:',.<>?/~`";
+
+async function generatePasswordAction(inputString: string): Promise<string> {
+  if (!inputString) {
+    return '';
+  }
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  let password = convertString(inputString);
+
+  const passwordChars = new Set(password.split(''));
+  const availableSpecialChars = allSpecialChars.split('').filter(char => !passwordChars.has(char));
+
+  let additionalChars = '';
+  const charsToAdd = Math.max(3, Math.min(5, availableSpecialChars.length));
+
+  for (let i = 0; i < charsToAdd; i++) {
+    if (availableSpecialChars.length === 0) break;
+    const randomIndex = Math.floor(Math.random() * availableSpecialChars.length);
+    const char = availableSpecialChars.splice(randomIndex, 1)[0];
+    additionalChars += char;
+  }
+  
+  const combinedChars = (password + additionalChars).split('');
+  
+  for (let i = combinedChars.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [combinedChars[i], combinedChars[j]] = [combinedChars[j], combinedChars[i]];
+  }
+
+  return combinedChars.join('');
+}
+
 
 type StoredPassword = {
   id: string;
@@ -87,65 +154,66 @@ export default function Home() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const handleSavePassword = () => {
+  const handleSavePassword = async () => {
     if (!generatedPassword || !userPasswordsCollection) return;
     const newPassword = { websiteName: name, encodedPassword: generatedPassword, lastModified: new Date().toISOString() };
-    addDocumentNonBlocking(userPasswordsCollection, newPassword);
-    toast({
-      title: "Password Saved",
-      description: `Password for "${name}" has been saved to your vault.`,
-    });
-    setGeneratedPassword("");
-    setName("");
+    try {
+      await addDoc(userPasswordsCollection, newPassword);
+      toast({
+        title: "Password Saved",
+        description: `Password for "${name}" has been saved to your vault.`,
+      });
+      setGeneratedPassword("");
+      setName("");
+    } catch (error: any) {
+       toast({
+        title: "Error Saving Password",
+        description: error.message || "Could not save the password.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDeletePassword = (id: string) => {
+  const handleDeletePassword = async (id: string) => {
     if (!firestore || !user) return;
     const docRef = doc(firestore, `users/${user.uid}/passwords`, id);
-    deleteDocumentNonBlocking(docRef);
-    toast({
-      title: "Password Deleted",
-      description: "The password has been removed from your vault.",
-    });
+    try {
+      await deleteDoc(docRef);
+      toast({
+        title: "Password Deleted",
+        description: "The password has been removed from your vault.",
+      });
+    } catch (error: any) {
+       toast({
+        title: "Error Deleting Password",
+        description: error.message || "Could not delete the password.",
+        variant: "destructive",
+      });
+    }
   };
 
-  if (isUserLoading) {
-    return (
+  // Due to the client-side auth simulation, we can't rely on `isUserLoading` or `user` for the initial screen.
+  // We'll show a generic loading state briefly and then the main content.
+  // A real app would have a more robust loading skeleton.
+  const [isAppLoading, setIsAppLoading] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setIsAppLoading(false), 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isAppLoading) {
+     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8 md:p-12 lg:p-24">
         <Loader className="animate-spin" />
       </main>
     );
   }
 
-  if (!user) {
-    return (
-       <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center p-4 sm:p-8 md:p-12 lg:p-24">
-        <div className="w-full max-w-md text-center">
-           <Card className="shadow-lg">
-             <CardHeader>
-               <CardTitle className="flex items-center justify-center gap-2">
-                 <Lock className="text-primary" />
-                 Welcome to PasswordForge
-               </CardTitle>
-               <CardDescription>
-                 Please log in or sign up to use the password vault.
-               </CardDescription>
-             </CardHeader>
-             <CardContent className="flex justify-center gap-4">
-               <Button asChild>
-                 <Link href="/login">Log In</Link>
-               </Button>
-               <Button variant="outline" asChild>
-                 <Link href="/signup">Sign Up</Link>
-               </Button>
-             </CardContent>
-           </Card>
-         </div>
-       </main>
-    )
-  }
-
-
+  // The login flow is simulated, so we can't truly protect the route.
+  // A user could access this page without "logging in".
+  // We'll show the UI assuming they're logged in. A full production app
+  // would use routing rules and proper auth state to protect this page.
+  
   return (
     <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center p-4 sm:p-8 md:p-12 lg:p-24">
       <div className="w-full max-w-4xl space-y-8">
@@ -235,7 +303,7 @@ export default function Home() {
               Password Vault
             </CardTitle>
             <CardDescription>
-              Your saved passwords. Stored securely in the cloud.
+              Your saved passwords. Stored securely. As auth is simulated, this may not work correctly.
             </CardDescription>
           </CardHeader>
           <CardContent>
