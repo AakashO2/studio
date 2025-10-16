@@ -87,6 +87,7 @@ export default function SignupPage() {
         otpSecret: secret.base32,
         isOtpEnabled: true,
         createdAt: new Date().toISOString(),
+        tempPassword: tempPassword, // Store temp password to allow first login
       });
       
       // 5. Generate QR Code and update state

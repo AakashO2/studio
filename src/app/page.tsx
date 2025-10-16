@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,78 +31,10 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUser, useFirestore, useCollection } from "@/firebase";
+import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { addDoc, deleteDoc, collection, doc } from "firebase/firestore";
 import Link from "next/link";
-import { useMemo } from "react";
-
-const characterMap: { [key: string]: string } = {
-  'A': '/-\\', 'a': '@',
-  'B': 'I3', 'b': '6',
-  'C': '(', 'c': '^',
-  'D': '|)', 'd': '-:-',
-  'E': '8', 'e': '8',
-  'F': '1=', 'f': '4',
-  'G': '(_;',
-  'H': 'i-!', 'h': '#',
-  'I': '][',
-  'J': '_7',
-  'K': '/<',
-  'L': 'I_', 'l': '1',
-  'M': '[\\/]', 'm': '7+5',
-  'N': '!\\i', 'n': '9',
-  'O': '{}', 'o': 'o-',
-  'P': '\\o', 'p': '%',
-  'Q': '0_', 'q': 'o-',
-  'R': '|-\\_', 'r': "i`",
-  'S': '5', 's': '$',
-  'T': '|', 't': '-/-',
-  'U': '6_9', 'u': '_',
-  'V': '\\/',
-  'W': '\\||',
-  'X': '><', 'x': '(+)',
-  'Y': '>-',
-  'Z': '"/_',
-  '&': '8',
-  ' ': '_',
-};
-
-function convertString(input: string): string {
-  return input.split('').map(char => characterMap[char] || char).join('');
-}
-
-const allSpecialChars = "!@#$%^&*()_+-=[]{}|;:',.<>?/~`";
-
-async function generatePasswordAction(inputString: string): Promise<string> {
-  if (!inputString) {
-    return '';
-  }
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  let password = convertString(inputString);
-
-  const passwordChars = new Set(password.split(''));
-  const availableSpecialChars = allSpecialChars.split('').filter(char => !passwordChars.has(char));
-
-  let additionalChars = '';
-  const charsToAdd = Math.max(3, Math.min(5, availableSpecialChars.length));
-
-  for (let i = 0; i < charsToAdd; i++) {
-    if (availableSpecialChars.length === 0) break;
-    const randomIndex = Math.floor(Math.random() * availableSpecialChars.length);
-    const char = availableSpecialChars.splice(randomIndex, 1)[0];
-    additionalChars += char;
-  }
-  
-  const combinedChars = (password + additionalChars).split('');
-  
-  for (let i = combinedChars.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [combinedChars[i], combinedChars[j]] = [combinedChars[j], combinedChars[i]];
-  }
-
-  return combinedChars.join('');
-}
+import { generatePasswordAction } from "./actions";
 
 
 type StoredPassword = {
@@ -121,7 +53,7 @@ export default function Home() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
-  const userPasswordsCollection = useMemo(() => {
+  const userPasswordsCollection = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return collection(firestore, `users/${user.uid}/passwords`);
   }, [firestore, user]);
@@ -192,14 +124,15 @@ export default function Home() {
     }
   };
 
-  // Due to the client-side auth simulation, we can't rely on `isUserLoading` or `user` for the initial screen.
-  // We'll show a generic loading state briefly and then the main content.
-  // A real app would have a more robust loading skeleton.
   const [isAppLoading, setIsAppLoading] = useState(true);
   useEffect(() => {
-    const timer = setTimeout(() => setIsAppLoading(false), 1000);
-    return () => clearTimeout(timer);
-  }, []);
+    // isUserLoading tells us if the user state has been determined
+    // Once it's false, we know if we have a user or not.
+    if (!isUserLoading) {
+      setIsAppLoading(false);
+    }
+  }, [isUserLoading]);
+
 
   if (isAppLoading) {
      return (
@@ -209,10 +142,25 @@ export default function Home() {
     );
   }
 
-  // The login flow is simulated, so we can't truly protect the route.
-  // A user could access this page without "logging in".
-  // We'll show the UI assuming they're logged in. A full production app
-  // would use routing rules and proper auth state to protect this page.
+  if (!user) {
+    return (
+       <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center p-4 sm:p-8 md:p-12 lg:p-24">
+        <div className="w-full max-w-md text-center">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Welcome to PasswordForge</CardTitle>
+                    <CardDescription>Please log in to manage your passwords.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Link href="/login">
+                        <Button>Go to Login</Button>
+                    </Link>
+                </CardContent>
+            </Card>
+        </div>
+      </main>
+    )
+  }
   
   return (
     <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center p-4 sm:p-8 md:p-12 lg:p-24">
@@ -303,7 +251,7 @@ export default function Home() {
               Password Vault
             </CardTitle>
             <CardDescription>
-              Your saved passwords. Stored securely. As auth is simulated, this may not work correctly.
+              Your saved passwords.
             </CardDescription>
           </CardHeader>
           <CardContent>

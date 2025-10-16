@@ -14,37 +14,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth, useFirestore } from '@/firebase';
-import { signInWithCustomToken } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Loader } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import * as otpauth from 'otpauth';
-
-async function getCustomToken(uid: string) {
-  // In a real app, this would be a call to a secure Cloud Function
-  // that verifies the user and creates a custom token.
-  // For this demo, we'll simulate it, but this is NOT secure for production.
-  // We're calling a fictional endpoint.
-  try {
-    const response = await fetch('/api/custom-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid }),
-    });
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to get custom token');
-    }
-    const data = await response.json();
-    return data.token;
-  } catch (e) {
-    // This is a simplified auth flow for demonstration purposes only.
-    // In a production app, you would want to have a proper backend to issue tokens.
-    // We will just create a dummy token here as we can't create a real one on the client.
-    console.warn("This is a demo-only auth flow. A dummy token is being used.");
-    return `dummy-token-for-${uid}`;
-  }
-}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -67,7 +41,7 @@ export default function LoginPage() {
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            throw new Error('Invalid login details.');
+            throw new Error('Invalid login details. User not found.');
         }
 
         const userDoc = querySnapshot.docs[0];
@@ -94,19 +68,18 @@ export default function LoginPage() {
             throw new Error('Invalid OTP code.');
         }
 
-        // 3. Sign in the user.
-        // In a production app, you would get a real custom token from a secure backend.
-        // As we don't have a backend that can mint tokens, we can't complete the sign-in.
-        // We will just show a success message and redirect.
-        // The user will not be truly "logged in" with Firebase Auth.
-        // The useUser() hook will still show 'no user'.
+        // 3. Sign in the user with their email and the temporary password stored in Firestore
+        if (!userData.tempPassword) {
+          throw new Error("Cannot log in. Account setup is incomplete.");
+        }
+
+        await signInWithEmailAndPassword(auth, lowercasedEmail, userData.tempPassword);
         
         toast({
-          title: 'Login Successful (Simulation)',
-          description: "Welcome back! You would be logged in now.",
+          title: 'Login Successful',
+          description: "Welcome back!",
         });
         
-        // This simulates a successful login for the UI, but auth state won't change.
         router.push('/');
 
 
