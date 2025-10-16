@@ -71,16 +71,19 @@ export default function Home() {
     const { convertedString } = await characterConversion({ inputString });
   
     const allSpecialChars = "!@#$%^&*()_+-=[]{}|;:',.<>?/~`";
+    const allNumbers = "0123456789";
+    const combinedChars = allSpecialChars + allNumbers;
+
     const passwordChars = new Set(convertedString.split(''));
-    const availableSpecialChars = allSpecialChars.split('').filter(char => !passwordChars.has(char));
+    const availableChars = combinedChars.split('').filter(char => !passwordChars.has(char));
   
     let additionalChars = '';
-    const charsToAdd = Math.max(3, Math.min(5, availableSpecialChars.length));
+    const charsToAdd = Math.max(3, Math.min(5, availableChars.length));
   
     for (let i = 0; i < charsToAdd; i++) {
-      if (availableSpecialChars.length === 0) break;
-      const randomIndex = Math.floor(Math.random() * availableSpecialChars.length);
-      const char = availableSpecialChars.splice(randomIndex, 1)[0];
+      if (availableChars.length === 0) break;
+      const randomIndex = Math.floor(Math.random() * availableChars.length);
+      const char = availableChars.splice(randomIndex, 1)[0];
       additionalChars += char;
     }
     
