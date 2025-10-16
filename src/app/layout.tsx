@@ -1,12 +1,12 @@
+
 import type { Metadata } from "next";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
-import { FirebaseClientProvider } from "@/firebase/client-provider";
 import Header from "@/components/Header";
 
 export const metadata: Metadata = {
-  title: "PasswordForge",
-  description: "Generate secure and unique passwords from a name or website.",
+  title: "Confidential Text Converter",
+  description: "Convert text into a confidential format.",
 };
 
 export default function RootLayout({
@@ -25,11 +25,9 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <FirebaseClientProvider>
-          <Header />
-          {children}
-          <Toaster />
-        </FirebaseClientProvider>
+        <Header />
+        {children}
+        <Toaster />
       </body>
     </html>
   );

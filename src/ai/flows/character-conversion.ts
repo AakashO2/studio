@@ -1,8 +1,9 @@
+
 'use server';
 /**
  * @fileOverview Converts characters in an input string to special characters based on a predefined mapping.
  *
- * - characterConversion - Converts an input string into a password using special character mapping.
+ * - characterConversion - Converts an input string into a confidential format using a special character map.
  * - CharacterConversionInput - The input type for the characterConversion function.
  * - CharacterConversionOutput - The return type for the characterConversion function.
  */
@@ -13,7 +14,7 @@ import {z} from 'genkit';
 const CharacterConversionInputSchema = z.object({
   inputString: z
     .string()
-    .describe('The input string to be converted into a password.'),
+    .describe('The input string to be converted.'),
 });
 export type CharacterConversionInput = z.infer<typeof CharacterConversionInputSchema>;
 
@@ -29,66 +30,67 @@ export async function characterConversion(input: CharacterConversionInput): Prom
 }
 
 const characterMap = {
-  A: '/-|',
-  a: '@',
-  B: 'I3',
-  b: '+',
-  C: '(',
-  c: '^',
-  D: '|)',
-  d: '-:-',
-  E: '8',
-  e: '=',
-  F: '1=',
-  f: '4',
-  G: '(_;',
-  g: '(_;',
-  H: 'i-!',
-  h: '#',
-  I: '][',
-  i: '][',
-  J: '_7',
-  K: '/<',
-  L: 'I_',
-  l: '1',
-  M: '[|/]',
-  m: '1+6+5',
-  N: '!/i',
-  n: '9',
-  O: '{}',
-  o: '5',
-  P: 'o/',
-  p: '%',
-  Q: '0_',
-  q: 'o-',
-  R: '_/-|',
-  r: 'i`',
-  S: '/',
-  s: '$',
-  T: '"|"',
-  t: '-/-',
-  U: '|_/',
-  u: '_`',
-  V: '|/',
-  v: ';/',
-  W: '|||',
-  w: '8',
-  X: '><',
-  x: '(+)',
-  Y: '>-',
-  y: '7',
-  Z: '"/_',
-  z: '-|.'
+  'A': '/-|',
+  'a': '@',
+  'B': 'I3',
+  'b': '`',
+  'C': '(',
+  'c': '^',
+  'D': '|)',
+  'd': '-:-',
+  'E': '8',
+  'e': '=',
+  'F': '1=',
+  'f': '4',
+  'G': '(_;',
+  'g': ' ',
+  'H': 'i-!',
+  'h': '#',
+  'I': '][',
+  'i': '][',
+  'J': '_7',
+  'K': '/<',
+  'L': 'I_',
+  'l': '1',
+  'M': '[|/]',
+  'm': '1+6+5',
+  'N': '!/i',
+  'n': '9',
+  'O': '{}',
+  'o': '5',
+  'P': 'o/',
+  'p': '%',
+  'Q': '0_',
+  'q': 'o-',
+  'R': '_/-|',
+  'r': 'i`',
+  'S': '/',
+  's': '$',
+  'T': '"|"',
+  't': '-/-',
+  'U': '|_/',
+  'u': '_',
+  'V': '|/',
+  'v': ';/',
+  'W': '|||',
+  'w': '8',
+  'X': '><',
+  'x': '(+)',
+  'Y': '>-',
+  'y': '7',
+  'Z': '"/_',
+  'z': '-|.'
 };
 
 const prompt = ai.definePrompt({
   name: 'characterConversionPrompt',
   input: {schema: CharacterConversionInputSchema},
   output: {schema: CharacterConversionOutputSchema},
-  prompt: `You are a password generation assistant. Convert the input string to a secure password using the following character map:
+  prompt: `You are a text conversion assistant. Convert the input string to a confidential format using the following character map:
 ${JSON.stringify(
   characterMap
-)} The final converted string should be returned in the 'convertedString' output field.
+)} 
+If a character from the input string is not in the map, keep the original character. The final converted string should be returned in the 'convertedString' output field.
 
 Input: {{{inputString}}}`,
 });
@@ -100,7 +102,17 @@ const characterConversionFlow = ai.defineFlow(
     outputSchema: CharacterConversionOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    // Manually convert the string to handle characters not in the map
+    let converted = '';
+    for (const char of input.inputString) {
+      // Check if the character exists in the map (case-sensitive)
+      if (char in characterMap) {
+        converted += characterMap[char as keyof typeof characterMap];
+      } else {
+        // If not in the map, keep the original character
+        converted += char;
+      }
+    }
+    return { convertedString: converted };
   }
 );
