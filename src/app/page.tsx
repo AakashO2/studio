@@ -32,15 +32,16 @@ import {
 import { generatePasswordAction } from "./actions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { useUser, useFirestore, useCollection } from "@/firebase";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { collection, doc } from "firebase/firestore";
 import Link from "next/link";
+import { useMemo } from "react";
 
 type StoredPassword = {
   id: string;
-  name: string;
-  value: string;
+  websiteName: string;
+  encodedPassword: string;
 };
 
 export default function Home() {
@@ -53,7 +54,7 @@ export default function Home() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
-  const userPasswordsCollection = useMemoFirebase(() => {
+  const userPasswordsCollection = useMemo(() => {
     if (!firestore || !user) return null;
     return collection(firestore, `users/${user.uid}/passwords`);
   }, [firestore, user]);
@@ -88,7 +89,7 @@ export default function Home() {
 
   const handleSavePassword = () => {
     if (!generatedPassword || !userPasswordsCollection) return;
-    const newPassword = { name, value: generatedPassword, lastModified: new Date().toISOString() };
+    const newPassword = { websiteName: name, encodedPassword: generatedPassword, lastModified: new Date().toISOString() };
     addDocumentNonBlocking(userPasswordsCollection, newPassword);
     toast({
       title: "Password Saved",
@@ -257,14 +258,14 @@ export default function Home() {
                     <TableBody>
                       {passwords.map((p) => (
                         <TableRow key={p.id}>
-                          <TableCell className="font-medium">{p.name}</TableCell>
-                          <TableCell className="font-mono">{p.value}</TableCell>
+                          <TableCell className="font-medium">{p.websiteName}</TableCell>
+                          <TableCell className="font-mono">{p.encodedPassword}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleCopyToClipboard(p.value, p.id)}
+                                onClick={() => handleCopyToClipboard(p.encodedPassword, p.id)}
                               >
                                  {copied === p.id ? (
                                   <Check className="h-4 w-4 text-green-500" />

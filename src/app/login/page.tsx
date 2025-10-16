@@ -14,13 +14,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithCustomToken } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Loader } from 'lucide-react';
+import { loginWithOtp } from '../actions';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const auth = useAuth();
@@ -30,18 +31,23 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast({
-        title: 'Login Successful',
-        description: "Welcome back!",
-      });
-      router.push('/');
+      const result = await loginWithOtp(email, otp);
+      if (result.success && result.token) {
+        await signInWithCustomToken(auth, result.token);
+        toast({
+          title: 'Login Successful',
+          description: "Welcome back!",
+        });
+        router.push('/');
+      } else {
+        throw new Error(result.error || 'Invalid login details.');
+      }
     } catch (error: any) {
       console.error('Login error:', error);
       toast({
         variant: 'destructive',
         title: 'Login Failed',
-        description: error.message || 'An unknown error occurred.',
+        description: error.message || 'Invalid login details.',
       });
     } finally {
       setIsLoading(false);
@@ -54,7 +60,7 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account.
+            Enter your email and the code from your authenticator app.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -71,13 +77,17 @@ export default function LoginPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="otp">One-Time Code</Label>
               <Input 
-                id="password" 
-                type="password" 
+                id="otp" 
+                type="text" 
                 required 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                placeholder="123456"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="\d{6}"
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>

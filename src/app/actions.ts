@@ -1,4 +1,20 @@
-"use server";
+'use server';
+
+import { getFirestore, doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import * as otpauth from 'otpauth';
+import * as qrcode from 'qrcode';
+
+// Ensure Firebase Admin is initialized
+if (!getApps().length) {
+  initializeApp({
+    // projectId, etc. will be automatically inferred from the environment
+  });
+}
+
+const firestore = getFirestore();
+const adminAuth = getAuth();
 
 const characterMap: { [key: string]: string } = {
   'A': '/-\\', 'a': '@',
@@ -45,15 +61,12 @@ export async function generatePasswordAction(inputString: string): Promise<strin
   // Simulate network latency for a better UX with loading states
   await new Promise(resolve => setTimeout(resolve, 1000));
   
-  // 1. Convert characters using local mapping
   let password = convertString(inputString);
 
-  // 2. Add random special characters that are not in the generated password
   const passwordChars = new Set(password.split(''));
   const availableSpecialChars = allSpecialChars.split('').filter(char => !passwordChars.has(char));
 
   let additionalChars = '';
-  // Add between 3 and 5 additional characters
   const charsToAdd = Math.max(3, Math.min(5, availableSpecialChars.length));
 
   for (let i = 0; i < charsToAdd; i++) {
@@ -63,14 +76,110 @@ export async function generatePasswordAction(inputString: string): Promise<strin
     additionalChars += char;
   }
   
-  // Shuffle all characters together for better security
   const combinedChars = (password + additionalChars).split('');
   
-  // Fisher-Yates shuffle
   for (let i = combinedChars.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [combinedChars[i], combinedChars[j]] = [combinedChars[j], combinedChars[i]];
   }
 
   return combinedChars.join('');
+}
+
+export async function createOtpUser(email: string): Promise<{ success: boolean; qrCodeDataUrl?: string; secret?: string; error?: string }> {
+  try {
+    const lowercasedEmail = email.toLowerCase();
+    
+    // Check if user already exists in Firestore
+    const usersRef = collection(firestore, 'users');
+    const q = query(usersRef, where('email', '==', lowercasedEmail));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+        return { success: false, error: 'User with this email already exists.' };
+    }
+
+    // Generate OTP secret
+    const secret = new otpauth.Secret({ size: 20 });
+    
+    // Generate OTP URI
+    const totp = new otpauth.TOTP({
+        issuer: 'PasswordForge',
+        label: lowercasedEmail,
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: secret,
+    });
+    const uri = totp.toString();
+
+    // Create user in Firebase Auth (no password)
+    const userRecord = await adminAuth.createUser({ email: lowercasedEmail, emailVerified: true });
+
+    // Store user info and OTP secret in Firestore
+    const userDocRef = doc(firestore, 'users', userRecord.uid);
+    await setDoc(userDocRef, {
+      uid: userRecord.uid,
+      email: lowercasedEmail,
+      otpSecret: secret.base32,
+      isOtpEnabled: true,
+      createdAt: new Date().toISOString(),
+    });
+
+    const qrCodeDataUrl = await qrcode.toDataURL(uri);
+
+    return { success: true, qrCodeDataUrl, secret: secret.base32 };
+
+  } catch (error: any) {
+    console.error("Error creating OTP user:", error);
+    return { success: false, error: error.message || 'An unexpected error occurred.' };
+  }
+}
+
+export async function loginWithOtp(email: string, otp: string): Promise<{ success: boolean; token?: string; error?: string }> {
+    try {
+        const lowercasedEmail = email.toLowerCase();
+        
+        // Find user by email in Firestore
+        const usersRef = collection(firestore, 'users');
+        const q = query(usersRef, where('email', '==', lowercasedEmail));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            return { success: false, error: 'Invalid login details.' };
+        }
+
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data();
+        
+        if (!userData.isOtpEnabled || !userData.otpSecret) {
+            return { success: false, error: 'OTP is not enabled for this account.' };
+        }
+        
+        const secret = otpauth.Secret.fromBase32(userData.otpSecret);
+
+        const totp = new otpauth.TOTP({
+            issuer: 'PasswordForge',
+            label: lowercasedEmail,
+            algorithm: 'SHA1',
+            digits: 6,
+            period: 30,
+            secret: secret,
+        });
+
+        const delta = totp.validate({ token: otp, window: 1 });
+        
+        if (delta === null) {
+            return { success: false, error: 'Invalid OTP code.' };
+        }
+
+        // OTP is valid, generate a custom token for client-side login
+        const customToken = await adminAuth.createCustomToken(userData.uid);
+
+        return { success: true, token: customToken };
+
+    } catch (error: any) {
+        console.error("Error logging in with OTP:", error);
+        return { success: false, error: error.message || 'An unexpected error occurred.' };
+    }
 }
