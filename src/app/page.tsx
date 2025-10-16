@@ -31,8 +31,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { addDoc, deleteDoc, collection, doc, serverTimestamp } from "firebase/firestore";
+import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase";
+import { collection, doc, serverTimestamp } from "firebase/firestore";
 import Link from "next/link";
 import { characterConversion } from '@/ai/flows/character-conversion';
 
@@ -122,39 +122,23 @@ export default function Home() {
   const handleSavePassword = async () => {
     if (!generatedPassword || !userPasswordsCollection) return;
     const newPassword = { websiteName: name, encodedPassword: generatedPassword, lastModified: serverTimestamp() };
-    try {
-      await addDoc(userPasswordsCollection, newPassword);
-      toast({
-        title: "Password Saved",
-        description: `Password for "${name}" has been saved to your vault.`,
-      });
-      setGeneratedPassword("");
-      setName("");
-    } catch (error: any) {
-       toast({
-        title: "Error Saving Password",
-        description: error.message || "Could not save the password.",
-        variant: "destructive",
-      });
-    }
+    addDocumentNonBlocking(userPasswordsCollection, newPassword);
+    toast({
+      title: "Password Saved",
+      description: `Password for "${name}" has been saved to your vault.`,
+    });
+    setGeneratedPassword("");
+    setName("");
   };
 
   const handleDeletePassword = async (id: string) => {
     if (!firestore || !user) return;
     const docRef = doc(firestore, `users/${user.uid}/passwords`, id);
-    try {
-      await deleteDoc(docRef);
-      toast({
-        title: "Password Deleted",
-        description: "The password has been removed from your vault.",
-      });
-    } catch (error: any) {
-       toast({
-        title: "Error Deleting Password",
-        description: error.message || "Could not delete the password.",
-        variant: "destructive",
-      });
-    }
+    deleteDocumentNonBlocking(docRef);
+    toast({
+      title: "Password Deleted",
+      description: "The password has been removed from your vault.",
+    });
   };
 
   if (isUserLoading) {
